@@ -1,0 +1,63 @@
+pairs: [EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,XAUUSD,BTCUSD]
+timeframes: [15m,1h,4h,1d]
+spread:
+  base_spread: 1.5
+  min_spread: 0.8
+  max_spread: 5.0
+  volatility_multiplier: 1.2
+  regime_tighten: 0.7
+  regime_widen: 1.8
+inventory:
+  max_position_units: 10
+  max_position_usd: 100000
+  skew_factor: 0.5
+  flatten_threshold: 0.7
+  emergency_flatten: 0.9
+risk:
+  max_drawdown_pct: 5.0
+  max_inventory_skew: 0.8
+  stale_position_minutes: 30
+  adverse_selection_window: 20
+  adverse_selection_threshold: 0.65
+  max_volatility_atr_multiple: 300.0
+  max_spread_widening_pct: 200
+quotes:
+  quote_refresh_ms: 500
+  time_decay_halflife: 60
+  partial_fill_prob: 0.3
+  slippage_pips: 0.1
+microstructure:
+  vpin_window: 50
+  imbalance_depth: 10
+  tick_entropy_window: 20
+  acceleration_lookback: 5
+training:
+  hypernetwork:
+    epochs: 200
+    batch_size: 256
+    lr: 0.001
+    hidden_dim: 128
+    num_regimes: 4
+    kl_weight: 0.1
+    pnl_weight: 1.0
+  rl:
+    ppo_epochs: 1000
+    steps_per_epoch: 2048
+    gamma: 0.99
+    lambda_gae: 0.95
+    clip_ratio: 0.2
+    lr_actor: 0.0003
+    lr_critic: 0.001
+    spread_reward_weight: 1.0
+    inventory_penalty_weight: 0.5
+paths:
+  drive_base: /data/data/com.termux/files/home/Forex-MM-Bot-v4.0
+  models_dir: models
+  data_dir: data
+  logs_dir: logs
+telegram:
+  enabled: true
+  heartbeat_interval_min: 5
+  alert_on_fill: true
+  alert_on_risk_kill: true
+  alert_on_inventory: true

@@ -1,0 +1,26 @@
+nohup: ignoring input
+/data/data/com.termux/files/usr/lib/python3.13/site-packages/onnxruntime/capi/onnxruntime_validation.py:66: UserWarning: Unsupported platform (android). ONNX Runtime supports Linux, macOS, AIX and Windows platforms, only.
+  warnings.warn(
+WARNING: linker: Warning: "/data/data/com.termux/files/usr/lib/python3.13/site-packages/curl_cffi.libs/libc++_shared-d523468d.so" unused DT entry: unknown processor-specific (type 0x70000001 arg 0x0) (ignoring)
+/data/data/com.termux/files/home/Forex-MM-Bot-v4.0/scanner/multi_pair_scanner.py:29: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  now = datetime.utcnow()
+/data/data/com.termux/files/home/Forex-MM-Bot-v4.0/scanner/multi_pair_scanner.py:59: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  now = datetime.utcnow().strftime("%H:%M UTC")
+/data/data/com.termux/files/home/Forex-MM-Bot-v4.0/scanner/multi_pair_scanner.py:29: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  now = datetime.utcnow()
+/data/data/com.termux/files/home/Forex-MM-Bot-v4.0/scanner/multi_pair_scanner.py:29: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  now = datetime.utcnow()
+/data/data/com.termux/files/home/Forex-MM-Bot-v4.0/scanner/multi_pair_scanner.py:29: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  now = datetime.utcnow()
+/data/data/com.termux/files/home/Forex-MM-Bot-v4.0/scanner/multi_pair_scanner.py:29: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  now = datetime.utcnow()
+/data/data/com.termux/files/home/Forex-MM-Bot-v4.0/scanner/multi_pair_scanner.py:29: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  now = datetime.utcnow()
+/data/data/com.termux/files/home/Forex-MM-Bot-v4.0/scanner/multi_pair_scanner.py:29: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  now = datetime.utcnow()
+/data/data/com.termux/files/home/Forex-MM-Bot-v4.0/scanner/multi_pair_scanner.py:29: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  now = datetime.utcnow()
+/data/data/com.termux/files/home/Forex-MM-Bot-v4.0/scanner/multi_pair_scanner.py:29: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  now = datetime.utcnow()
+$BTC-USD: possibly delisted; no price data found  (period=1d)
+$ETH-USD: possibly delisted; no price data found  (period=1d)

@@ -1,0 +1,4 @@
+nohup: ignoring input
+/data/data/com.termux/files/usr/lib/python3.13/site-packages/onnxruntime/capi/onnxruntime_validation.py:66: UserWarning: Unsupported platform (android). ONNX Runtime supports Linux, macOS, AIX and Windows platforms, only.
+  warnings.warn(
+WARNING: linker: Warning: "/data/data/com.termux/files/usr/lib/python3.13/site-packages/curl_cffi.libs/libc++_shared-d523468d.so" unused DT entry: unknown processor-specific (type 0x70000001 arg 0x0) (ignoring)

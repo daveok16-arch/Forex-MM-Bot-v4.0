@@ -1,0 +1,7 @@
+env OKecho __pycache__/
+*.py[cod]
+*.pt
+*.onnx
+logs/
+models/
+.env

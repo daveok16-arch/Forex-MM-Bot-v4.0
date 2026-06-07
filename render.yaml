@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: forex-signal-bot
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python signal_bot_v2.py --pair EURUSD --duration 86400 --interval 300"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+    autoDeploy: true
