@@ -12,3 +12,5 @@ WARNING: linker: Warning: "/data/data/com.termux/files/usr/lib/python3.13/site-p
   now = datetime.utcnow().strftime("%H:%M UTC")
 /data/data/com.termux/files/home/Forex-MM-Bot-v4.0/scanner/v6_scanner.py:268: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
   now = datetime.utcnow().strftime("%H:%M UTC")
+/data/data/com.termux/files/home/Forex-MM-Bot-v4.0/scanner/v6_scanner.py:268: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  now = datetime.utcnow().strftime("%H:%M UTC")
