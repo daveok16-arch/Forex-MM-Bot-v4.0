@@ -1,10 +1,11 @@
-# app.py — With forced import completion and granular logging
+# app.py — Ultra-robust with per-module error catching
 import os
 import sys
 import threading
 import asyncio
 import time
 import traceback
+import importlib
 from datetime import datetime
 from flask import Flask, jsonify
 
@@ -26,6 +27,17 @@ def log(msg):
     startup_logs.append(entry)
     print(f"[APP] {msg}")
 
+def safe_import(module_name):
+    try:
+        log(f"Importing {module_name}...")
+        module = importlib.import_module(module_name)
+        log(f"{module_name} OK")
+        return module
+    except Exception as e:
+        log(f"{module_name} FAILED: {e}")
+        log(traceback.format_exc())
+        return None
+
 @app.route("/")
 def health():
     return jsonify({
@@ -34,7 +46,7 @@ def health():
         "scanner_running": scanner_running,
         "thread_alive": scanner_thread.is_alive() if scanner_thread else False,
         "last_error": last_error,
-        "startup_logs": startup_logs[-20:],
+        "startup_logs": startup_logs[-25:],
         "timestamp": datetime.utcnow().isoformat()
     })
 
@@ -48,7 +60,7 @@ def scanner_status():
         "scanner_running": scanner_running,
         "thread_alive": scanner_thread.is_alive() if scanner_thread else False,
         "last_error": last_error,
-        "startup_logs": startup_logs[-25:],
+        "startup_logs": startup_logs[-30:],
         "timestamp": datetime.utcnow().isoformat()
     })
 
@@ -63,34 +75,43 @@ def run_scanner():
         
         sys.path.insert(0, base_dir)
         
-        # Import step by step
-        log("Importing yaml...")
-        import yaml
-        log("yaml OK")
+        # Import modules one by one with error catching
+        yaml = safe_import("yaml")
+        if not yaml: return
         
-        log("Importing numpy...")
-        import numpy as np
-        log("numpy OK")
+        np = safe_import("numpy")
+        if not np: return
         
-        log("Importing onnxruntime...")
-        import onnxruntime as ort
-        log("onnxruntime OK")
+        # Test ONNX separately - this is the problematic one
+        log("Setting ONNX env vars...")
+        os.environ["ONNXRUNTIME_DISABLE_GPU"] = "1"
+        ort = safe_import("onnxruntime")
+        if not ort:
+            log("ONNX failed, continuing without it...")
         
-        log("Importing requests...")
-        import requests
-        log("requests OK")
+        requests = safe_import("requests")
+        if not requests: return
         
-        log("Importing yfinance...")
-        import yfinance as yf
-        log("yfinance OK")
+        yf = safe_import("yfinance")
+        if not yf: return
         
         log("Importing V6Scanner...")
-        from scanner.v6_scanner import V6Scanner
-        log("V6Scanner imported")
+        try:
+            from scanner.v6_scanner import V6Scanner
+            log("V6Scanner imported")
+        except Exception as e:
+            log(f"V6Scanner import FAILED: {e}")
+            log(traceback.format_exc())
+            return
         
         log("Creating V6Scanner instance...")
-        scanner = V6Scanner(config_path)
-        log("V6Scanner created")
+        try:
+            scanner = V6Scanner(config_path)
+            log("V6Scanner created")
+        except Exception as e:
+            log(f"V6Scanner creation FAILED: {e}")
+            log(traceback.format_exc())
+            return
         
         # Test Telegram
         log("Testing Telegram...")
@@ -99,7 +120,7 @@ def run_scanner():
             asyncio.set_event_loop(loop)
             result = loop.run_until_complete(scanner.tg._send("🔄 Render test - " + datetime.utcnow().isoformat()))
             loop.close()
-            log(f"Telegram test result: {result}")
+            log(f"Telegram test: {result}")
         except Exception as e:
             log(f"Telegram test failed: {e}")
         
