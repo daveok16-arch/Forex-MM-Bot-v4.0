@@ -1,6 +1,6 @@
 paths:
   drive_base: ./data
-  models_dir: data/models
+  models_dir: models
 microstructure:
   window: 20
   volume_threshold: 1.5
