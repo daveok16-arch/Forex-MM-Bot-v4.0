@@ -1,4 +1,4 @@
-# app.py — DIAGNOSTIC VERSION for Render
+# app.py — v2 with forced CPU ONNX and lazy loading
 import os
 import sys
 import threading
@@ -7,6 +7,10 @@ import time
 import traceback
 from datetime import datetime
 from flask import Flask, jsonify
+
+# Force CPU-only ONNX before anything else loads it
+os.environ["ONNXRUNTIME_DISABLE_GPU"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 app = Flask(__name__)
 
@@ -30,7 +34,7 @@ def health():
         "last_scan": str(last_scan_time) if last_scan_time else None,
         "scan_count": scan_count,
         "scanner_error": scanner_error,
-        "init_logs": init_logs,
+        "init_logs": init_logs[-20:],
         "timestamp": datetime.utcnow().isoformat()
     })
 
@@ -49,7 +53,7 @@ def scanner_status():
         "scan_count": scan_count,
         "thread_alive": scanner_thread.is_alive() if scanner_thread else False,
         "error": scanner_error,
-        "init_logs": init_logs
+        "init_logs": init_logs[-30:]
     })
 
 def run_scanner():
@@ -79,27 +83,43 @@ telegram:
   chat_id: ${TELEGRAM_CHAT_ID}
 """)
         
-        # Read config to verify
-        with open(config_path, "r") as f:
-            cfg_content = f.read()
-        log(f"[5] Config content: {cfg_content[:200]}...")
-        
         sys.path.insert(0, base_dir)
         log("[6] sys.path updated")
         
-        log("[7] Importing V6Scanner...")
+        log("[7a] Importing yaml...")
+        import yaml
+        log("[7b] yaml OK")
+        
+        log("[7c] Importing numpy...")
+        import numpy as np
+        log("[7d] numpy OK")
+        
+        log("[7e] Importing onnxruntime...")
+        import onnxruntime as ort
+        log("[7f] onnxruntime OK")
+        
+        log("[7g] Importing requests...")
+        import requests
+        log("[7h] requests OK")
+        
+        log("[7i] Importing yfinance...")
+        import yfinance as yf
+        log("[7j] yfinance OK")
+        
+        log("[7k] Importing V6Scanner...")
         from scanner.v6_scanner import V6Scanner
         log("[8] V6Scanner imported successfully")
         
         log("[9] Creating V6Scanner instance...")
         scanner = V6Scanner(config_path)
         log("[10] V6Scanner created successfully")
-        log(f"[11] Ensemble loaded: {scanner.ensemble}")
+        log(f"[11] Ensemble use_onnx: {scanner.ensemble.use_onnx}")
+        log(f"[12] Ensemble source: {scanner.ensemble.predict(None, 'normal')['source']}")
         
         scanner_running = True
         scanner_error = None
         interval = float(os.environ.get("SCAN_INTERVAL", "300"))
-        log(f"[12] Starting run loop with interval: {interval}")
+        log(f"[13] Starting run loop with interval: {interval}")
         
         asyncio.run(scanner.run(interval))
         
@@ -114,8 +134,19 @@ telegram:
 log("[0] Starting background scanner thread...")
 scanner_thread = threading.Thread(target=run_scanner, daemon=True)
 scanner_thread.start()
-time.sleep(5)
-log(f"[END] Thread alive: {scanner_thread.is_alive()}, Running: {scanner_running}, Error: {scanner_error}")
+
+# Wait and poll for 30 seconds
+for i in range(30):
+    time.sleep(1)
+    if scanner_running:
+        log(f"[POLL-{i}] Scanner is RUNNING!")
+        break
+    if scanner_error:
+        log(f"[POLL-{i}] Scanner ERROR: {scanner_error}")
+        break
+    log(f"[POLL-{i}] Thread alive: {scanner_thread.is_alive()}, Running: {scanner_running}")
+
+log(f"[END] Final state — Thread alive: {scanner_thread.is_alive()}, Running: {scanner_running}, Error: {scanner_error}")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
