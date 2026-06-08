@@ -1,3 +1,6 @@
+import os
+os.environ["ONNXRUNTIME_DISABLE_GPU"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 import os, sys, yaml, time, asyncio, argparse, numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
