@@ -4,9 +4,15 @@ services:
     runtime: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 2"
+    startCommand: "bash start.sh"
     envVars:
       - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: ONNXRUNTIME_DISABLE_GPU
+        value: "1"
+      - key: CUDA_VISIBLE_DEVICES
+        value: ""
+      - key: ORT_DISABLE_GPU
         value: "1"
       - key: CONFIG_PATH
         value: "/opt/render/project/src/config/mm_config.yaml"

@@ -1,12 +1,5 @@
-# app.py — Flask wrapper for Render (Fixed)
 import os
 import sys
-
-# CRITICAL: Force CPU-only ONNX before anything loads it
-os.environ["ONNXRUNTIME_DISABLE_GPU"] = "1"
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
-os.environ["ORT_DISABLE_GPU"] = "1"
-
 import threading
 import asyncio
 import time
@@ -14,7 +7,6 @@ from datetime import datetime
 from flask import Flask, jsonify
 
 app = Flask(__name__)
-
 scanner_running = False
 scanner_thread = None
 startup_logs = []
@@ -51,24 +43,18 @@ def run_scanner():
     try:
         base_dir = os.path.dirname(os.path.abspath(__file__))
         log(f"Base dir: {base_dir}")
-        
         config_path = os.path.join(base_dir, "config", "mm_config.yaml")
         log(f"Config: {config_path}, exists: {os.path.exists(config_path)}")
-        
         sys.path.insert(0, base_dir)
         log("Importing scanner...")
-        
         from scanner.v6_scanner import V6Scanner
         log("Scanner imported")
-        
         log("Creating V6Scanner...")
         scanner = V6Scanner(config_path)
         log("V6Scanner created")
-        
         scanner_running = True
         log("Starting run loop...")
         asyncio.run(scanner.run(300))
-        
     except Exception as e:
         import traceback
         log(f"CRASH: {e}")
@@ -79,8 +65,7 @@ log("Starting scanner thread...")
 scanner_thread = threading.Thread(target=run_scanner, daemon=True)
 scanner_thread.start()
 
-# Wait to confirm startup
-for i in range(15):
+for i in range(20):
     time.sleep(1)
     if scanner_running:
         log(f"CONFIRMED: Scanner running after {i}s")
@@ -89,7 +74,7 @@ for i in range(15):
         log(f"Thread died after {i}s")
         break
 else:
-    log(f"Thread alive after 15s, scanner_running={scanner_running}")
+    log(f"Thread alive after 20s, scanner_running={scanner_running}")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
