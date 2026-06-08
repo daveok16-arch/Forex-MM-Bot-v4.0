@@ -17,12 +17,8 @@ import onnxruntime as ort
 
 class V6Scanner:
     ALL_PAIRS = [
-        "EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "BTCUSD", "ETHUSD", "USDCAD", "AUDUSD", "USDCHF", "NZDUSD", "GBPJPY", "EURJPY", "EURGBP", "XAGUSD", "USOIL", "SOLUSD",
-        # 
         "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF",
-        "NZDUSD", "EURGBP", "EURJPY", "GBPJPY", "AUDJPY", "CADJPY",
-        "EURAUD", "GBPAUD", "EURNZD", "GBPNZD", "AUDNZD", "USDSGD",
-        "XAUUSD", "XAGUSD", "USOIL", "BTCUSD", "ETHUSD", "SOLUSD"
+        "NZDUSD", "EURGBP", "EURJPY", "GBPJPY", "XAUUSD", "BTCUSD"
     ]
 
     TICKER_MAP = {
