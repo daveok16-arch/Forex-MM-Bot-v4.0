@@ -1,10 +1,11 @@
-# app.py — With forced stdout flush and logging module
+# app.py — With immediate restart and signal handling
 import os
 import sys
 import threading
 import asyncio
 import time
 import traceback
+import signal
 import importlib
 import logging
 from datetime import datetime
@@ -33,6 +34,7 @@ scanner_running = False
 scanner_thread = None
 startup_logs = []
 last_error = None
+restart_count = 0
 
 def log(msg):
     ts = datetime.utcnow().strftime('%H:%M:%S')
@@ -62,7 +64,8 @@ def health():
         "scanner_running": scanner_running,
         "thread_alive": scanner_thread.is_alive() if scanner_thread else False,
         "last_error": last_error,
-        "startup_logs": startup_logs[-25:],
+        "restart_count": restart_count,
+        "startup_logs": startup_logs[-30:],
         "timestamp": datetime.utcnow().isoformat()
     })
 
@@ -76,7 +79,8 @@ def scanner_status():
         "scanner_running": scanner_running,
         "thread_alive": scanner_thread.is_alive() if scanner_thread else False,
         "last_error": last_error,
-        "startup_logs": startup_logs[-30:],
+        "restart_count": restart_count,
+        "startup_logs": startup_logs[-35:],
         "timestamp": datetime.utcnow().isoformat()
     })
 
@@ -92,34 +96,23 @@ def run_scanner():
         
         sys.path.insert(0, base_dir)
         
-        # Import modules one by one
+        # Import modules
         yaml = safe_import("yaml")
-        if not yaml:
-            log("yaml failed, aborting")
-            return
+        if not yaml: return
         
         np = safe_import("numpy")
-        if not np:
-            log("numpy failed, aborting")
-            return
+        if not np: return
         
-        log("About to import onnxruntime...")
-        sys.stdout.flush()
         ort = safe_import("onnxruntime")
-        if not ort:
-            log("onnxruntime failed, continuing without it")
+        if not ort: log("onnxruntime failed, continuing")
         
         requests = safe_import("requests")
-        if not requests:
-            log("requests failed, aborting")
-            return
+        if not requests: return
         
         yf = safe_import("yfinance")
-        if not yf:
-            log("yfinance failed, aborting")
-            return
+        if not yf: return
         
-        log("About to import V6Scanner...")
+        log("Importing V6Scanner...")
         sys.stdout.flush()
         try:
             from scanner.v6_scanner import V6Scanner
@@ -149,7 +142,7 @@ def run_scanner():
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(scanner.tg._send("🔄 Render test - " + datetime.utcnow().isoformat()))
+            result = loop.run_until_complete(scanner.tg._send("🔄 Render restart test - " + datetime.utcnow().isoformat()))
             loop.close()
             log(f"Telegram test: {result}")
             sys.stdout.flush()
@@ -162,10 +155,26 @@ def run_scanner():
         log("Starting run loop...")
         sys.stdout.flush()
         
+        # Run with comprehensive error catching
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(scanner.run(300))
-        loop.close()
+        
+        try:
+            loop.run_until_complete(scanner.run(300))
+        except SystemExit as e:
+            log(f"SystemExit caught: {e}")
+            sys.stdout.flush()
+        except KeyboardInterrupt as e:
+            log(f"KeyboardInterrupt caught: {e}")
+            sys.stdout.flush()
+        except Exception as e:
+            log(f"Loop error: {e}")
+            log(traceback.format_exc())
+            sys.stdout.flush()
+        finally:
+            loop.close()
+            log("Loop closed")
+            sys.stdout.flush()
         
     except Exception as e:
         last_error = str(e)
@@ -175,8 +184,9 @@ def run_scanner():
         scanner_running = False
 
 def start_scanner():
-    global scanner_thread
-    log("Starting scanner thread...")
+    global scanner_thread, restart_count
+    restart_count += 1
+    log(f"Starting scanner thread (restart #{restart_count})...")
     sys.stdout.flush()
     scanner_thread = threading.Thread(target=run_scanner, daemon=True)
     scanner_thread.start()
@@ -184,11 +194,11 @@ def start_scanner():
 # Initial start
 start_scanner()
 
-# Monitor and restart
+# Monitor and restart — check every 10 seconds
 def monitor_thread():
     global scanner_thread
     while True:
-        time.sleep(30)
+        time.sleep(10)
         if scanner_thread and not scanner_thread.is_alive():
             log("Thread died! Restarting...")
             sys.stdout.flush()
