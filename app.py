@@ -1,4 +1,4 @@
-# app.py — With configurable interval and better status
+# app.py — With cache-busting headers and custom yfinance session
 import os
 import sys
 import threading
@@ -8,7 +8,7 @@ import traceback
 import importlib
 import logging
 from datetime import datetime
-from flask import Flask, jsonify
+from flask import Flask, jsonify, make_response
 
 # Force CPU-only ONNX
 os.environ["ONNXRUNTIME_DISABLE_GPU"] = "1"
@@ -56,9 +56,16 @@ def safe_import(module_name):
         sys.stdout.flush()
         return None
 
+def json_response(data):
+    response = make_response(jsonify(data))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 @app.route("/")
 def health():
-    return jsonify({
+    return json_response({
         "status": "alive",
         "bot": "forex-signal-bot-v4",
         "scanner_running": scanner_running,
@@ -72,11 +79,11 @@ def health():
 
 @app.route("/health")
 def detailed_health():
-    return jsonify({"status": "running", "timestamp": datetime.utcnow().isoformat()})
+    return json_response({"status": "running", "timestamp": datetime.utcnow().isoformat()})
 
 @app.route("/status")
 def scanner_status():
-    return jsonify({
+    return json_response({
         "scanner_running": scanner_running,
         "thread_alive": scanner_thread.is_alive() if scanner_thread else False,
         "last_error": last_error,

@@ -118,12 +118,15 @@ class V6Scanner:
         return Calendar()
 
     async def _fetch_data(self, pairs: List[str], batch_size: int = 1) -> Dict[str, Dict]:
+        import requests
+        session = requests.Session()
+        session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
         data = {}
         for i in range(0, len(pairs), batch_size):
             batch = pairs[i:i+batch_size]
             for pair in batch:
                 try:
-                    ticker = yf.Ticker(self.TICKER_MAP.get(pair, f"{pair}=X"))
+                    ticker = yf.Ticker(self.TICKER_MAP.get(pair, f"{pair}=X"), session=session)
                     h = ticker.history(period="5d", interval="5m")
                     if not h.empty and len(h) >= 20:
                         recent = h.tail(20)
