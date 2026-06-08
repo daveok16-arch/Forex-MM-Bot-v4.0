@@ -4,12 +4,15 @@ services:
     runtime: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python signal_bot_v2.py --pair EURUSD --duration 86400 --interval 300"
+    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 2"
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: CONFIG_PATH
+        value: "/opt/render/project/src/config/mm_config.yaml"
+      - key: SCAN_INTERVAL
+        value: "300"
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: TELEGRAM_CHAT_ID
-        sync: false
-    autoDeploy: true
+        value: "7779937295"

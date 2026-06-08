@@ -1,8 +1,12 @@
-torch>=2.0.0
-numpy>=1.24.0
+# Forex-MM-Bot-v4.0 — Render Deployment Requirements
+requests>=2.31.0
 pyyaml>=6.0
-onnx>=1.14.0
-onnxruntime-gpu>=1.15.0
-aiohttp>=3.8.0
+yfinance>=0.2.0
+python-telegram-bot>=20.0
+numpy>=1.24.0
+onnxruntime>=1.15.0
 pandas>=2.0.0
-psutil>=5.9.0
+scikit-learn>=1.3.0
+flask>=2.3.0
+gunicorn>=21.0.0
+aiohttp>=3.8.0
