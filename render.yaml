@@ -17,7 +17,7 @@ services:
       - key: CONFIG_PATH
         value: "/opt/render/project/src/config/mm_config.yaml"
       - key: SCAN_INTERVAL
-        value: "300"
+        value: "1800"
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: TELEGRAM_CHAT_ID

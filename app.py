@@ -1,4 +1,4 @@
-# app.py — With monitor heartbeat and detailed logging
+# app.py — With configurable interval and better status
 import os
 import sys
 import threading
@@ -154,7 +154,8 @@ def run_scanner():
         
         scanner_running = True
         last_error = None
-        log("Starting run loop...")
+        interval = int(os.environ.get("SCAN_INTERVAL", "1800"))
+        log(f"Starting run loop with interval: {interval}s")
         sys.stdout.flush()
         
         # Run with comprehensive error catching
@@ -162,7 +163,7 @@ def run_scanner():
         asyncio.set_event_loop(loop)
         
         try:
-            loop.run_until_complete(scanner.run(300))
+            loop.run_until_complete(scanner.run(interval))
         except SystemExit as e:
             log(f"SystemExit caught: {e}")
             sys.stdout.flush()
@@ -204,9 +205,10 @@ def monitor_thread():
     while True:
         time.sleep(10)
         monitor_checks += 1
-        log(f"Monitor check #{monitor_checks}, thread alive: {scanner_thread.is_alive() if scanner_thread else False}")
+        alive = scanner_thread.is_alive() if scanner_thread else False
+        log(f"Monitor check #{monitor_checks}, thread alive: {alive}")
         sys.stdout.flush()
-        if scanner_thread and not scanner_thread.is_alive():
+        if scanner_thread and not alive:
             log("Thread died! Restarting...")
             sys.stdout.flush()
             scanner_running = False
