@@ -1,11 +1,10 @@
-# app.py — With immediate restart and signal handling
+# app.py — With monitor heartbeat and detailed logging
 import os
 import sys
 import threading
 import asyncio
 import time
 import traceback
-import signal
 import importlib
 import logging
 from datetime import datetime
@@ -35,6 +34,7 @@ scanner_thread = None
 startup_logs = []
 last_error = None
 restart_count = 0
+monitor_checks = 0
 
 def log(msg):
     ts = datetime.utcnow().strftime('%H:%M:%S')
@@ -65,6 +65,7 @@ def health():
         "thread_alive": scanner_thread.is_alive() if scanner_thread else False,
         "last_error": last_error,
         "restart_count": restart_count,
+        "monitor_checks": monitor_checks,
         "startup_logs": startup_logs[-30:],
         "timestamp": datetime.utcnow().isoformat()
     })
@@ -80,6 +81,7 @@ def scanner_status():
         "thread_alive": scanner_thread.is_alive() if scanner_thread else False,
         "last_error": last_error,
         "restart_count": restart_count,
+        "monitor_checks": monitor_checks,
         "startup_logs": startup_logs[-35:],
         "timestamp": datetime.utcnow().isoformat()
     })
@@ -194,19 +196,28 @@ def start_scanner():
 # Initial start
 start_scanner()
 
-# Monitor and restart — check every 10 seconds
+# Monitor and restart
 def monitor_thread():
-    global scanner_thread
+    global scanner_thread, monitor_checks
+    log("Monitor thread started")
+    sys.stdout.flush()
     while True:
         time.sleep(10)
+        monitor_checks += 1
+        log(f"Monitor check #{monitor_checks}, thread alive: {scanner_thread.is_alive() if scanner_thread else False}")
+        sys.stdout.flush()
         if scanner_thread and not scanner_thread.is_alive():
             log("Thread died! Restarting...")
             sys.stdout.flush()
             scanner_running = False
             start_scanner()
 
+log("Starting monitor thread...")
+sys.stdout.flush()
 monitor = threading.Thread(target=monitor_thread, daemon=True)
 monitor.start()
+log(f"Monitor thread started, alive: {monitor.is_alive()}")
+sys.stdout.flush()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
