@@ -5,5 +5,10 @@ microstructure:
   window: 20
   volume_threshold: 1.5
 telegram:
+  enabled: True
   bot_token: "${TELEGRAM_BOT_TOKEN}"
   chat_id: "${TELEGRAM_CHAT_ID}"
+  heartbeat_interval_min: 5
+  alert_on_fill: True
+  alert_on_risk_kill: True
+  alert_on_inventory: True
