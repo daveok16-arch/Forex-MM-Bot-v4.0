@@ -217,7 +217,13 @@ class V6Scanner:
         self.scan_count += 1
         now = datetime.utcnow().strftime("%H:%M UTC")
         print(f"[V6 Scan #{self.scan_count}] {now}")
-        data = await self._fetch_data(self.ALL_PAIRS)
+        try:
+            data = await self._fetch_data(self.ALL_PAIRS)
+        except Exception as e:
+            print(f"[V6 Fetch Error] {e}")
+            import traceback
+            traceback.print_exc()
+            data = {}
         if not data:
             print("[V6] No data fetched - skipping signal generation")
             return

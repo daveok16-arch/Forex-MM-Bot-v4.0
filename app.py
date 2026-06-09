@@ -1,4 +1,4 @@
-# app.py — With cache-busting headers and custom yfinance session
+# app.py — Ultra-robust with guaranteed restart
 import os
 import sys
 import threading
@@ -42,19 +42,6 @@ def log(msg):
     startup_logs.append(entry)
     logger.info(f"[APP] {msg}")
     sys.stdout.flush()
-
-def safe_import(module_name):
-    try:
-        log(f"Importing {module_name}...")
-        module = importlib.import_module(module_name)
-        log(f"{module_name} OK")
-        sys.stdout.flush()
-        return module
-    except Exception as e:
-        log(f"{module_name} FAILED: {e}")
-        log(traceback.format_exc())
-        sys.stdout.flush()
-        return None
 
 def json_response(data):
     response = make_response(jsonify(data))
@@ -105,59 +92,41 @@ def run_scanner():
         
         sys.path.insert(0, base_dir)
         
-        # Import modules
-        yaml = safe_import("yaml")
-        if not yaml: return
+        # Import modules one by one
+        log("Importing yaml...")
+        import yaml
+        log("yaml OK")
         
-        np = safe_import("numpy")
-        if not np: return
+        log("Importing numpy...")
+        import numpy as np
+        log("numpy OK")
         
-        ort = safe_import("onnxruntime")
-        if not ort: log("onnxruntime failed, continuing")
+        log("Importing onnxruntime...")
+        import onnxruntime as ort
+        log("onnxruntime OK")
         
-        requests = safe_import("requests")
-        if not requests: return
-        
-        yf = safe_import("yfinance")
-        if not yf: return
+        log("Importing requests...")
+        import requests
+        log("requests OK")
         
         log("Importing V6Scanner...")
-        sys.stdout.flush()
-        try:
-            from scanner.v6_scanner import V6Scanner
-            log("V6Scanner imported")
-            sys.stdout.flush()
-        except Exception as e:
-            log(f"V6Scanner import FAILED: {e}")
-            log(traceback.format_exc())
-            sys.stdout.flush()
-            return
+        from scanner.v6_scanner import V6Scanner
+        log("V6Scanner imported")
         
         log("Creating V6Scanner...")
-        sys.stdout.flush()
-        try:
-            scanner = V6Scanner(config_path)
-            log("V6Scanner created")
-            sys.stdout.flush()
-        except Exception as e:
-            log(f"V6Scanner creation FAILED: {e}")
-            log(traceback.format_exc())
-            sys.stdout.flush()
-            return
+        scanner = V6Scanner(config_path)
+        log("V6Scanner created")
         
         # Test Telegram
         log("Testing Telegram...")
-        sys.stdout.flush()
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(scanner.tg._send("🔄 Render restart test - " + datetime.utcnow().isoformat()))
+            result = loop.run_until_complete(scanner.tg._send("🔄 Render restart - " + datetime.utcnow().isoformat()))
             loop.close()
             log(f"Telegram test: {result}")
-            sys.stdout.flush()
         except Exception as e:
             log(f"Telegram test failed: {e}")
-            sys.stdout.flush()
         
         scanner_running = True
         last_error = None
@@ -166,25 +135,27 @@ def run_scanner():
         sys.stdout.flush()
         
         # Run with comprehensive error catching
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        try:
-            loop.run_until_complete(scanner.run(interval))
-        except SystemExit as e:
-            log(f"SystemExit caught: {e}")
-            sys.stdout.flush()
-        except KeyboardInterrupt as e:
-            log(f"KeyboardInterrupt caught: {e}")
-            sys.stdout.flush()
-        except Exception as e:
-            log(f"Loop error: {e}")
-            log(traceback.format_exc())
-            sys.stdout.flush()
-        finally:
-            loop.close()
-            log("Loop closed")
-            sys.stdout.flush()
+        while True:
+            try:
+                log("Creating new event loop...")
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                log("Running scanner...")
+                loop.run_until_complete(scanner.run(interval))
+                log("Scanner loop completed (should not happen)")
+                loop.close()
+            except Exception as e:
+                last_error = str(e)
+                log(f"Loop error: {e}")
+                log(traceback.format_exc())
+                sys.stdout.flush()
+            finally:
+                try:
+                    loop.close()
+                except:
+                    pass
+            log("Restarting loop after error...")
+            time.sleep(10)
         
     except Exception as e:
         last_error = str(e)
