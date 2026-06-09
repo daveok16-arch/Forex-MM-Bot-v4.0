@@ -5,7 +5,7 @@ export ORT_DISABLE_GPU=1
 echo "[Start] Starting scanner and Flask..."
 
 # Start scanner in background
-python3 /opt/render/project/src/scanner.py &
+python3 /opt/render/project/src/bot_runner.py &
 SCANNER_PID=$!
 echo "[Start] Scanner PID: $SCANNER_PID"
 
