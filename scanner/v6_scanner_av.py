@@ -22,11 +22,12 @@ class V6Scanner:
         "NZDUSD", "EURGBP", "EURJPY", "GBPJPY", "XAUUSD", "BTCUSD"
     ]
 
-    TD_PAIRS = {
+    # Alpha Vantage FX pairs
+    AV_PAIRS = {
         "EURUSD": "EUR/USD", "GBPUSD": "GBP/USD", "USDJPY": "USD/JPY",
         "AUDUSD": "AUD/USD", "USDCAD": "USD/CAD", "USDCHF": "USD/CHF",
         "NZDUSD": "NZD/USD", "EURGBP": "EUR/GBP", "EURJPY": "EUR/JPY",
-        "GBPJPY": "GBP/JPY", "XAUUSD": "XAU/USD", "BTCUSD": "BTC/USD"
+        "GBPJPY": "GBP/JPY"
     }
 
     def __init__(self, cfg_path):
@@ -47,8 +48,9 @@ class V6Scanner:
         self.active_signals = {}
         self.price_history = {}
         
-        self.td_api_key = os.environ.get("TWELVEDATA_API_KEY", "")
-        print(f"[V6] TwelveData API: {'Configured' if self.td_api_key else 'MISSING'}")
+        # Alpha Vantage API key
+        self.av_api_key = os.environ.get("ALPHA_VANTAGE_API_KEY", "")
+        print(f"[V6] Alpha Vantage API: {'Configured' if self.av_api_key else 'MISSING'}")
         print("[V6] Scanner initialized | ONNX-only | Order Flow | Sentiment | Calendar")
 
     def _load_ensemble(self, mdir):
@@ -127,25 +129,34 @@ class V6Scanner:
         return Calendar()
 
     async def _fetch_data(self, pairs: List[str], batch_size: int = 1) -> Dict[str, Dict]:
+        """Fetch data using Alpha Vantage API"""
         data = {}
+        
         for pair in pairs:
             try:
-                if pair in self.TD_PAIRS:
-                    symbol = self.TD_PAIRS[pair]
-                    url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval=5min&outputsize=20&apikey={self.td_api_key}"
+                if pair in self.AV_PAIRS:
+                    from_symbol, to_symbol = self.AV_PAIRS[pair].split("/")
+                    url = f"https://www.alphavantage.co/query?function=FX_INTRADAY&from_symbol={from_symbol}&to_symbol={to_symbol}&interval=5min&apikey={self.av_api_key}"
+                    
                     response = requests.get(url, timeout=10)
                     result = response.json()
-                    if "values" in result and len(result["values"]) >= 20:
-                        values = result["values"]
+                    
+                    if "Time Series FX (5min)" in result:
+                        time_series = result["Time Series FX (5min)"]
+                        times = sorted(time_series.keys(), reverse=True)[:20]
+                        
                         prices = []
                         volumes = []
                         highs = []
                         lows = []
-                        for v in values:
-                            prices.append(float(v["close"]))
-                            highs.append(float(v["high"]))
-                            lows.append(float(v["low"]))
-                            volumes.append(float(v.get("volume", 1000.0)))
+                        
+                        for t in times:
+                            item = time_series[t]
+                            prices.append(float(item["4. close"]))
+                            highs.append(float(item["2. high"]))
+                            lows.append(float(item["3. low"]))
+                            volumes.append(1000.0)
+                        
                         if len(prices) >= 20:
                             data[pair] = {
                                 "prices": np.array(prices),
@@ -160,17 +171,19 @@ class V6Scanner:
                             self.correlation.update(pair, prices[-1])
                             self.price_history[pair] = np.array(prices)
                             print(f"[V6 Fetch] {pair} OK - price: {prices[-1]}")
-                    elif "status" in result and result["status"] == "error":
-                        print(f"[V6 Fetch] {pair} API error: {result.get('message', 'Unknown')}")
-                        if "limit" in result.get("message", "").lower():
-                            break
+                    elif "Note" in result:
+                        print(f"[V6 Fetch] {pair} API limit: {result['Note']}")
+                        break
                     else:
                         print(f"[V6 Fetch] {pair} no data: {result}")
                 else:
-                    print(f"[V6 Fetch] {pair} skipped - not supported by TwelveData")
+                    print(f"[V6 Fetch] {pair} skipped - not supported by AV FX")
+                    
             except Exception as e:
                 print(f"[V6 Fetch] {pair} error: {e}")
-            await asyncio.sleep(8)
+            
+            await asyncio.sleep(15)
+        
         return data
 
     def _order_flow_analyze(self, pair: str, data: Dict) -> Dict:
@@ -187,6 +200,7 @@ class V6Scanner:
         regime = self._detect_regime(data["prices"])
         e = self.ensemble.predict(v, regime)
         hyper_score = (e["long_weight"] - e["short_weight"]) * (1.0 - e["uncertainty"])
+
         of = self._order_flow_analyze(pair, data)
         of_score = of["strength"] if of["signal"] == "BUY" else -of["strength"] if of["signal"] == "SELL" else 0
         sent = self.sentiment.get_sentiment(pair)
@@ -195,6 +209,7 @@ class V6Scanner:
         fv = {"event_risk": 0.0, "sentiment_score": 0.0, "rate_differential": 0.0, "calendar_events": 0}
         fund_score = (fv["sentiment_score"] * 0.3) + (fv["rate_differential"] * 0.2)
         if fv["event_risk"] > 0.5: hyper_score *= 0.5
+
         weights = {"hyper": 0.35, "orderflow": 0.25, "sentiment": 0.20, "fundamental": 0.20}
         composite = (hyper_score * weights["hyper"] + of_score * weights["orderflow"] + sent_score * weights["sentiment"] + fund_score * weights["fundamental"])
         confidence = min(abs(composite) * 100, 99.0)
@@ -218,9 +233,11 @@ class V6Scanner:
         now = datetime.utcnow().strftime("%H:%M UTC")
         print(f"[V6 Scan #{self.scan_count}] {now}")
         data = await self._fetch_data(self.ALL_PAIRS)
+        
         if not data:
             print("[V6] No data fetched - skipping signal generation")
             return
+            
         signals = []
         for pair, d in data.items():
             can_trade, reason = self.correlation.should_trade(pair, [s["pair"] for s in signals])
@@ -233,10 +250,13 @@ class V6Scanner:
                 sizing = self.position_sizer.calculate(d["current_price"], d["current_price"] * 0.98 if sig == "BUY" else d["current_price"] * 1.02, 10000.0, vol)
                 calendar_alert = self.calendar.get_alert(pair)
                 signals.append({"pair": pair, "signal": sig, "price": d["current_price"], "confidence": conf, "details": details, "sizing": sizing, "calendar": calendar_alert})
+        
         signals.sort(key=lambda x: x["confidence"], reverse=True)
         top = signals[:5]
+        
         for sig in top:
             await self._emit_signal(sig)
+        
         if self.scan_count % 10 == 0:
             await self._send_heartbeat()
 
@@ -258,8 +278,8 @@ class V6Scanner:
     async def run(self, interval=1800):
         print("[V6] Next-Gen Scanner v6.0 started")
         print("[V6] Features: ONNX Ensemble | Order Flow | Sentiment | Calendar | Correlation")
-        print("[V6] Data source: TwelveData (free tier)")
-        await self.tg._send("🚀 **V6 Scanner v6.0** AI-powered trading signals\\n📊 Data: TwelveData")
+        print("[V6] Data source: Alpha Vantage (free tier)")
+        await self.tg._send("🚀 **V6 Scanner v6.0** AI-powered trading signals\\n📊 Data: Alpha Vantage")
         while True:
             try:
                 await self.scan()

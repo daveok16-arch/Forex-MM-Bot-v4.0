@@ -18,8 +18,8 @@ services:
         value: "/opt/render/project/src/config/mm_config.yaml"
       - key: SCAN_INTERVAL
         value: "1800"
-      - key: ALPHA_VANTAGE_API_KEY
-        value: "NHAFQH4ELBALR6UY"
+      - key: TWELVEDATA_API_KEY
+        value: "083054b70e074f92b64ebdc75e084f4c"
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: TELEGRAM_CHAT_ID
