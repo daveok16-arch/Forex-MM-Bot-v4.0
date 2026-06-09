@@ -83,7 +83,7 @@ def run_scanner():
                 try:
                     loop.close()
                 except:
-n                    pass
+                    pass
             except Exception as e:
                 bot_status["error"] = str(e)
                 print(f"[Scanner] Error: {e}")
