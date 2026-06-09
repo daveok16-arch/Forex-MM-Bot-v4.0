@@ -63,6 +63,7 @@ sys.path.insert(0, '/opt/render/project/src')
 os.chdir('/opt/render/project/src')
 
 import asyncio
+import time
 from scanner.v6_scanner import V6Scanner
 import json
 from datetime import datetime
