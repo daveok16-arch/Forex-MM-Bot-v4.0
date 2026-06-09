@@ -42,6 +42,20 @@ def log(msg):
     startup_logs.append(entry)
     logger.info(f"[APP] {msg}")
     sys.stdout.flush()
+    # Write status to file for cross-thread access
+    try:
+        with open('/tmp/bot_status.json', 'w') as f:
+            import json
+            json.dump({
+                "scanner_running": scanner_running,
+                "thread_alive": scanner_thread.is_alive() if scanner_thread else False,
+                "restart_count": restart_count,
+                "monitor_checks": monitor_checks,
+                "last_error": last_error,
+                "timestamp": datetime.utcnow().isoformat()
+            }, f)
+    except:
+        pass
 
 def json_response(data):
     response = make_response(jsonify(data))
@@ -70,15 +84,22 @@ def detailed_health():
 
 @app.route("/status")
 def scanner_status():
-    return json_response({
-        "scanner_running": scanner_running,
-        "thread_alive": scanner_thread.is_alive() if scanner_thread else False,
-        "last_error": last_error,
-        "restart_count": restart_count,
-        "monitor_checks": monitor_checks,
-        "startup_logs": startup_logs[-35:],
-        "timestamp": datetime.utcnow().isoformat()
-    })
+    try:
+        with open('/tmp/bot_status.json', 'r') as f:
+            import json
+            status = json.load(f)
+            status["startup_logs"] = startup_logs[-35:]
+            return json_response(status)
+    except:
+        return json_response({
+            "scanner_running": scanner_running,
+            "thread_alive": scanner_thread.is_alive() if scanner_thread else False,
+            "last_error": last_error,
+            "restart_count": restart_count,
+            "monitor_checks": monitor_checks,
+            "startup_logs": startup_logs[-35:],
+            "timestamp": datetime.utcnow().isoformat()
+        })
 
 def run_scanner():
     global scanner_running, last_error
