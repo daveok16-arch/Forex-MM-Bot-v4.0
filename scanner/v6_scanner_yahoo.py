@@ -1,10 +1,9 @@
+import os
+os.environ["ONNXRUNTIME_DISABLE_GPU"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 import os, sys, yaml, time, asyncio, argparse, numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
-
-# Force CPU-only ONNX
-os.environ["ONNXRUNTIME_DISABLE_GPU"] = "1"
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from features.microstructure import MicrostructureFeatures
@@ -13,7 +12,7 @@ from features.breakout import BreakoutDetector
 from features.advanced import VolumeBreakout, CorrelationFilter, PositionSizer, TrailingStop
 from agents.dual_throat_ensemble_termux import DualThroatEnsemble
 from tg_dispatcher.mm_dispatcher import MMDispatcher
-import requests
+import yfinance as yf
 import onnxruntime as ort
 
 class V6Scanner:
@@ -22,12 +21,15 @@ class V6Scanner:
         "NZDUSD", "EURGBP", "EURJPY", "GBPJPY", "XAUUSD", "BTCUSD"
     ]
 
-    # Alpha Vantage FX pairs
-    AV_PAIRS = {
-        "EURUSD": "EUR/USD", "GBPUSD": "GBP/USD", "USDJPY": "USD/JPY",
-        "AUDUSD": "AUD/USD", "USDCAD": "USD/CAD", "USDCHF": "USD/CHF",
-        "NZDUSD": "NZD/USD", "EURGBP": "EUR/GBP", "EURJPY": "EUR/JPY",
-        "GBPJPY": "GBP/JPY"
+    TICKER_MAP = {
+        "EURUSD": "EURUSD=X", "GBPUSD": "GBPUSD=X", "USDJPY": "USDJPY=X",
+        "AUDUSD": "AUDUSD=X", "USDCAD": "USDCAD=X", "USDCHF": "USDCHF=X",
+        "NZDUSD": "NZDUSD=X", "EURGBP": "EURGBP=X", "EURJPY": "EURJPY=X",
+        "GBPJPY": "GBPJPY=X", "AUDJPY": "AUDJPY=X", "CADJPY": "CADJPY=X",
+        "EURAUD": "EURAUD=X", "GBPAUD": "GBPAUD=X", "EURNZD": "EURNZD=X",
+        "GBPNZD": "GBPNZD=X", "AUDNZD": "AUDNZD=X", "USDSGD": "USDSGD=X",
+        "XAUUSD": "GC=F", "XAGUSD": "SI=F", "USOIL": "CL=F",
+        "BTCUSD": "BTC-USD", "ETHUSD": "ETH-USD", "SOLUSD": "SOL-USD"
     }
 
     def __init__(self, cfg_path):
@@ -47,26 +49,16 @@ class V6Scanner:
         self.trailing_stops = {}
         self.active_signals = {}
         self.price_history = {}
-        
-        # Alpha Vantage API key
-        self.av_api_key = os.environ.get("ALPHA_VANTAGE_API_KEY", "")
-        print(f"[V6] Alpha Vantage API: {'Configured' if self.av_api_key else 'MISSING'}")
         print("[V6] Scanner initialized | ONNX-only | Order Flow | Sentiment | Calendar")
 
     def _load_ensemble(self, mdir):
-        if not os.path.isabs(mdir):
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            mdir = os.path.join(base_dir, mdir)
         pt_path = os.path.join(mdir, "hypernetwork_v4.pt")
         onnx_path = os.path.join(mdir, "hypernetwork_v4_fixed.onnx")
-        print(f"[V6] Model dir: {mdir}")
-        print(f"[V6] ONNX: {onnx_path} exists={os.path.exists(onnx_path)}")
-        print(f"[V6] PT: {pt_path} exists={os.path.exists(pt_path)}")
         load_path = onnx_path if os.path.exists(onnx_path) else (pt_path if os.path.exists(pt_path) else None)
-        print(f"[V6] Loading from: {load_path}")
-        ensemble = DualThroatEnsemble(self.cfg, load_path)
-        print(f"[V6] use_onnx={ensemble.use_onnx}, source={ensemble.predict(None, 'normal')['source']}")
-        return ensemble
+        print(f"[V6] Looking for model at: {onnx_path} (exists: {os.path.exists(onnx_path)})")
+        print(f"[V6] Looking for model at: {pt_path} (exists: {os.path.exists(pt_path)})")
+        print(f"[V6] Ensemble will load: {load_path}")
+        return DualThroatEnsemble(self.cfg, load_path)
 
     def _init_order_flow(self):
         class OrderFlow:
@@ -126,61 +118,33 @@ class V6Scanner:
         return Calendar()
 
     async def _fetch_data(self, pairs: List[str], batch_size: int = 1) -> Dict[str, Dict]:
-        """Fetch data using Alpha Vantage API"""
+        import requests
+        session = requests.Session()
+        session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
         data = {}
-        
-        for pair in pairs:
-            try:
-                if pair in self.AV_PAIRS:
-                    from_symbol, to_symbol = self.AV_PAIRS[pair].split("/")
-                    url = f"https://www.alphavantage.co/query?function=FX_INTRADAY&from_symbol={from_symbol}&to_symbol={to_symbol}&interval=5min&apikey={self.av_api_key}"
-                    
-                    response = requests.get(url, timeout=10)
-                    result = response.json()
-                    
-                    if "Time Series FX (5min)" in result:
-                        time_series = result["Time Series FX (5min)"]
-                        times = sorted(time_series.keys(), reverse=True)[:20]
-                        
-                        prices = []
-                        volumes = []
-                        highs = []
-                        lows = []
-                        
-                        for t in times:
-                            item = time_series[t]
-                            prices.append(float(item["4. close"]))
-                            highs.append(float(item["2. high"]))
-                            lows.append(float(item["3. low"]))
-                            volumes.append(1000.0)
-                        
-                        if len(prices) >= 20:
-                            data[pair] = {
-                                "prices": np.array(prices),
-                                "volumes": np.array(volumes),
-                                "highs": np.array(highs),
-                                "lows": np.array(lows),
-                                "current_price": round(prices[-1], 5),
-                                "current_volume": float(volumes[-1]),
-                                "current_high": round(highs[-1], 5),
-                                "current_low": round(lows[-1], 5)
-                            }
-                            self.correlation.update(pair, prices[-1])
-                            self.price_history[pair] = np.array(prices)
-                            print(f"[V6 Fetch] {pair} OK - price: {prices[-1]}")
-                    elif "Note" in result:
-                        print(f"[V6 Fetch] {pair} API limit: {result['Note']}")
-                        break
-                    else:
-                        print(f"[V6 Fetch] {pair} no data: {result}")
-                else:
-                    print(f"[V6 Fetch] {pair} skipped - not supported by AV FX")
-                    
-            except Exception as e:
-                print(f"[V6 Fetch] {pair} error: {e}")
-            
-            await asyncio.sleep(15)
-        
+        for i in range(0, len(pairs), batch_size):
+            batch = pairs[i:i+batch_size]
+            for pair in batch:
+                try:
+                    ticker = yf.Ticker(self.TICKER_MAP.get(pair, f"{pair}=X"), session=session)
+                    h = ticker.history(period="5d", interval="5m")
+                    if not h.empty and len(h) >= 20:
+                        recent = h.tail(20)
+                        prices = recent["Close"].values
+                        volumes = recent["Volume"].values if "Volume" in recent else np.ones(len(prices))
+                        highs = recent["High"].values if "High" in recent else prices
+                        lows = recent["Low"].values if "Low" in recent else prices
+                        data[pair] = {
+                            "prices": prices, "volumes": volumes, "highs": highs, "lows": lows,
+                            "current_price": round(prices[-1], 5), "current_volume": float(volumes[-1]),
+                            "current_high": round(highs[-1], 5), "current_low": round(lows[-1], 5)
+                        }
+                        self.correlation.update(pair, prices[-1])
+                        self.price_history[pair] = prices
+                except Exception as e:
+                    print(f"[V6 Fetch] {pair} error: {e}")
+                await asyncio.sleep(2)  # Rate limit protection
+            await asyncio.sleep(3)  # Delay between batches
         return data
 
     def _order_flow_analyze(self, pair: str, data: Dict) -> Dict:
@@ -230,11 +194,6 @@ class V6Scanner:
         now = datetime.utcnow().strftime("%H:%M UTC")
         print(f"[V6 Scan #{self.scan_count}] {now}")
         data = await self._fetch_data(self.ALL_PAIRS)
-        
-        if not data:
-            print("[V6] No data fetched - skipping signal generation")
-            return
-            
         signals = []
         for pair, d in data.items():
             can_trade, reason = self.correlation.should_trade(pair, [s["pair"] for s in signals])
@@ -247,13 +206,10 @@ class V6Scanner:
                 sizing = self.position_sizer.calculate(d["current_price"], d["current_price"] * 0.98 if sig == "BUY" else d["current_price"] * 1.02, 10000.0, vol)
                 calendar_alert = self.calendar.get_alert(pair)
                 signals.append({"pair": pair, "signal": sig, "price": d["current_price"], "confidence": conf, "details": details, "sizing": sizing, "calendar": calendar_alert})
-        
         signals.sort(key=lambda x: x["confidence"], reverse=True)
         top = signals[:5]
-        
         for sig in top:
             await self._emit_signal(sig)
-        
         if self.scan_count % 10 == 0:
             await self._send_heartbeat()
 
@@ -272,11 +228,10 @@ class V6Scanner:
         stats = (f"💓 **V6 Heartbeat**\\nScans: {self.scan_count}\\nPairs tracked: {len(self.price_history)}\\nActive signals: {len(self.active_signals)}\\nModels: Hypernetwork + OrderFlow + Sentiment + Calendar")
         await self.tg._send(stats)
 
-    async def run(self, interval=1800):
+    async def run(self, interval=300):
         print("[V6] Next-Gen Scanner v6.0 started")
         print("[V6] Features: ONNX Ensemble | Order Flow | Sentiment | Calendar | Correlation")
-        print("[V6] Data source: Alpha Vantage (free tier)")
-        await self.tg._send("🚀 **V6 Scanner v6.0** AI-powered trading signals\\n📊 Data: Alpha Vantage")
+        await self.tg._send("🚀 **V6 Scanner v6.0** AI-powered trading signals")
         while True:
             try:
                 await self.scan()
@@ -286,7 +241,7 @@ class V6Scanner:
 
 async def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--interval", type=int, default=1800)
+    p.add_argument("--interval", type=float, default=300)
     p.add_argument("--config", default="config/mm_config.yaml")
     a = p.parse_args()
     s = V6Scanner(a.config)
