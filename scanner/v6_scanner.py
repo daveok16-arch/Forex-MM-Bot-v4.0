@@ -66,7 +66,7 @@ class V6Scanner:
         print(f"[V6] Loading from: {load_path}")
         ensemble = DualThroatEnsemble(self.cfg, load_path)
         import numpy as np
-        test_features = np.zeros(10, dtype=np.float32)
+        test_features = np.zeros(5, dtype=np.float32)
         test_result = ensemble.predict(test_features, "normal")
         print(f"[V6] use_onnx={ensemble.use_onnx}, source={test_result['source']}")
         return ensemble
