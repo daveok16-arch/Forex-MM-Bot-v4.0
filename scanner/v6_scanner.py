@@ -19,7 +19,7 @@ import onnxruntime as ort
 class V6Scanner:
     ALL_PAIRS = [
         "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF",
-        "NZDUSD", "EURGBP", "EURJPY", "GBPJPY", "XAUUSD", "BTCUSD"
+        "NZDUSD", "EURGBP", "EURJPY", "GBPJPY"
     ]
 
     TD_PAIRS = {
@@ -132,6 +132,10 @@ class V6Scanner:
             try:
                 if pair in self.TD_PAIRS:
                     symbol = self.TD_PAIRS[pair]
+                    # Skip commodities and crypto on free FX endpoint
+                    if pair in ["XAUUSD", "BTCUSD"]:
+                        print(f"[V6 Fetch] {pair} skipped - commodities/crypto not supported on free FX endpoint")
+                        continue
                     url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval=5min&outputsize=20&apikey={self.td_api_key}"
                     response = requests.get(url, timeout=15)
                     result = response.json()
@@ -170,7 +174,7 @@ class V6Scanner:
                     print(f"[V6 Fetch] {pair} skipped - not supported by TwelveData")
             except Exception as e:
                 print(f"[V6 Fetch] {pair} error: {e}")
-            await asyncio.sleep(8)
+            await asyncio.sleep(5)
         return data
 
     def _order_flow_analyze(self, pair: str, data: Dict) -> Dict:
