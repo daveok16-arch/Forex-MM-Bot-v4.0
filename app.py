@@ -1,31 +1,12 @@
-# app.py — Ultra-robust with guaranteed restart
-import os
-import sys
-import threading
-import asyncio
-import time
-import traceback
-import importlib
-import logging
+# app.py - Emergency fix with timeout protection
+import os, sys, threading, asyncio, time, traceback
 from datetime import datetime
 from flask import Flask, jsonify, make_response
 
-# Force CPU-only ONNX
 os.environ["ONNXRUNTIME_DISABLE_GPU"] = "1"
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
-os.environ["ORT_DISABLE_GPU"] = "1"
 
-# Force unbuffered output
 sys.stdout.reconfigure(line_buffering=True)
-
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(asctime)s] %(message)s',
-    datefmt='%H:%M:%S',
-    force=True
-)
-logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -35,190 +16,141 @@ startup_logs = []
 last_error = None
 restart_count = 0
 monitor_checks = 0
+scan_count = 0
+last_scan_time = None
 
 def log(msg):
     ts = datetime.utcnow().strftime('%H:%M:%S')
     entry = f"{ts} {msg}"
     startup_logs.append(entry)
-    logger.info(f"[APP] {msg}")
+    print(f"[APP] {msg}")
     sys.stdout.flush()
-    # Write status to file for cross-thread access
-    try:
-        with open('/tmp/bot_status.json', 'w') as f:
-            import json
-            json.dump({
-                "scanner_running": scanner_running,
-                "thread_alive": scanner_thread.is_alive() if scanner_thread else False,
-                "restart_count": restart_count,
-                "monitor_checks": monitor_checks,
-                "last_error": last_error,
-                "timestamp": datetime.utcnow().isoformat()
-            }, f)
-    except:
-        pass
 
 def json_response(data):
     response = make_response(jsonify(data))
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
     return response
 
 @app.route("/")
 def health():
     return json_response({
         "status": "alive",
-        "bot": "forex-signal-bot-v4",
         "scanner_running": scanner_running,
         "thread_alive": scanner_thread.is_alive() if scanner_thread else False,
-        "last_error": last_error,
         "restart_count": restart_count,
         "monitor_checks": monitor_checks,
-        "startup_logs": startup_logs[-30:],
+        "scan_count": scan_count,
+        "last_scan": str(last_scan_time) if last_scan_time else None,
+        "last_error": last_error,
         "timestamp": datetime.utcnow().isoformat()
     })
 
-@app.route("/health")
-def detailed_health():
-    return json_response({"status": "running", "timestamp": datetime.utcnow().isoformat()})
-
 @app.route("/status")
 def scanner_status():
-    try:
-        with open('/tmp/bot_status.json', 'r') as f:
-            import json
-            status = json.load(f)
-            status["startup_logs"] = startup_logs[-35:]
-            return json_response(status)
-    except:
-        return json_response({
-            "scanner_running": scanner_running,
-            "thread_alive": scanner_thread.is_alive() if scanner_thread else False,
-            "last_error": last_error,
-            "restart_count": restart_count,
-            "monitor_checks": monitor_checks,
-            "startup_logs": startup_logs[-35:],
-            "timestamp": datetime.utcnow().isoformat()
-        })
+    return json_response({
+        "scanner_running": scanner_running,
+        "thread_alive": scanner_thread.is_alive() if scanner_thread else False,
+        "restart_count": restart_count,
+        "monitor_checks": monitor_checks,
+        "scan_count": scan_count,
+        "last_scan": str(last_scan_time) if last_scan_time else None,
+        "last_error": last_error,
+        "timestamp": datetime.utcnow().isoformat()
+    })
 
 def run_scanner():
-    global scanner_running, last_error
+    global scanner_running, last_error, scan_count, last_scan_time
     try:
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        log(f"Base dir: {base_dir}")
-        
-        config_path = os.path.join(base_dir, "config", "mm_config.yaml")
-        log(f"Config: {config_path}, exists: {os.path.exists(config_path)}")
-        sys.stdout.flush()
-        
         sys.path.insert(0, base_dir)
-        
-        # Import modules one by one
-        log("Importing yaml...")
-        import yaml
-        log("yaml OK")
-        
-        log("Importing numpy...")
-        import numpy as np
-        log("numpy OK")
-        
-        log("Importing onnxruntime...")
-        import onnxruntime as ort
-        log("onnxruntime OK")
-        
-        log("Importing requests...")
-        import requests
-        log("requests OK")
-        
-        log("Importing V6Scanner...")
+
         from scanner.v6_scanner import V6Scanner
-        log("V6Scanner imported")
-        
-        log("Creating V6Scanner...")
-        scanner = V6Scanner(config_path)
-        log("V6Scanner created")
-        
+        scanner = V6Scanner(os.path.join(base_dir, "config", "mm_config.yaml"))
+
         # Test Telegram
-        log("Testing Telegram...")
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(scanner.tg._send("🔄 Render restart - " + datetime.utcnow().isoformat()))
+            loop.run_until_complete(scanner.tg._send("🔄 Bot restarted - " + datetime.utcnow().strftime('%H:%M')))
             loop.close()
-            log(f"Telegram test: {result}")
         except Exception as e:
             log(f"Telegram test failed: {e}")
-        
+
         scanner_running = True
-        last_error = None
         interval = int(os.environ.get("SCAN_INTERVAL", "1800"))
-        log(f"Starting run loop with interval: {interval}s")
-        sys.stdout.flush()
-        
-        # Run with comprehensive error catching
+
         while True:
             try:
-                log("Creating new event loop...")
+                log(f"Starting scan #{scan_count + 1}...")
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                log("Running scanner...")
-                loop.run_until_complete(scanner.run(interval))
-                log("Scanner loop completed (should not happen)")
+
+                # Run scan with 5-minute timeout
+                future = asyncio.ensure_future(scanner.scan(), loop=loop)
+                loop.run_until_complete(asyncio.wait_for(future, timeout=300))
+
+                scan_count += 1
+                last_scan_time = datetime.utcnow()
+                log(f"Scan #{scan_count} completed at {last_scan_time.strftime('%H:%M')}")
                 loop.close()
-            except Exception as e:
-                last_error = str(e)
-                log(f"Loop error: {e}")
-                log(traceback.format_exc())
-                sys.stdout.flush()
-            finally:
+
+                # Heartbeat every 10 scans
+                if scan_count % 10 == 0:
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        loop.run_until_complete(scanner._send_heartbeat())
+                        loop.close()
+                    except Exception as e:
+                        log(f"Heartbeat failed: {e}")
+
+            except asyncio.TimeoutError:
+                log("Scan timed out! Restarting loop...")
                 try:
                     loop.close()
                 except:
                     pass
-            log("Restarting loop after error...")
-            time.sleep(10)
-        
+            except Exception as e:
+                last_error = str(e)
+                log(f"Scan error: {e}")
+                try:
+                    loop.close()
+                except:
+                    pass
+
+            log(f"Sleeping {interval}s...")
+            time.sleep(interval)
+
     except Exception as e:
         last_error = str(e)
-        log(f"CRASH: {e}")
+        log(f"FATAL: {e}")
         log(traceback.format_exc())
-        sys.stdout.flush()
         scanner_running = False
 
 def start_scanner():
     global scanner_thread, restart_count
     restart_count += 1
-    log(f"Starting scanner thread (restart #{restart_count})...")
-    sys.stdout.flush()
+    log(f"Starting scanner (restart #{restart_count})...")
     scanner_thread = threading.Thread(target=run_scanner, daemon=True)
     scanner_thread.start()
 
-# Initial start
 start_scanner()
 
-# Monitor and restart
-def monitor_thread():
+def monitor():
     global scanner_thread, monitor_checks
-    log("Monitor thread started")
-    sys.stdout.flush()
     while True:
-        time.sleep(10)
+        time.sleep(60)
         monitor_checks += 1
         alive = scanner_thread.is_alive() if scanner_thread else False
-        log(f"Monitor check #{monitor_checks}, thread alive: {alive}")
-        sys.stdout.flush()
-        if scanner_thread and not alive:
-            log("Thread died! Restarting...")
-            sys.stdout.flush()
+
+        if not alive:
+            log(f"Thread dead! Restarting...")
             scanner_running = False
             start_scanner()
+        elif monitor_checks % 5 == 0:
+            log(f"Check #{monitor_checks}, alive={alive}, scans={scan_count}, last_scan={last_scan_time}")
 
-log("Starting monitor thread...")
-sys.stdout.flush()
-monitor = threading.Thread(target=monitor_thread, daemon=True)
-monitor.start()
-log(f"Monitor thread started, alive: {monitor.is_alive()}")
-sys.stdout.flush()
+threading.Thread(target=monitor, daemon=True).start()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))

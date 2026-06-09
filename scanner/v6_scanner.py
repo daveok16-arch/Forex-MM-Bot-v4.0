@@ -133,7 +133,7 @@ class V6Scanner:
                 if pair in self.TD_PAIRS:
                     symbol = self.TD_PAIRS[pair]
                     url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval=5min&outputsize=20&apikey={self.td_api_key}"
-                    response = requests.get(url, timeout=10)
+                    response = requests.get(url, timeout=15)
                     result = response.json()
                     if "values" in result and len(result["values"]) >= 20:
                         values = result["values"]
