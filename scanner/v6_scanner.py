@@ -46,6 +46,7 @@ class V6Scanner:
         self.trailing_stops = {}
         self.active_signals = {}
         self.price_history = {}
+        self.last_heartbeat_scan = -1
         
         self.td_api_key = os.environ.get("TWELVEDATA_API_KEY", "")
         print(f"[V6] TwelveData API: {'Configured' if self.td_api_key else 'MISSING'}")
@@ -247,7 +248,8 @@ class V6Scanner:
         top = signals[:5]
         for sig in top:
             await self._emit_signal(sig)
-        if self.scan_count % 10 == 0:
+        if self.scan_count % 10 == 0 and self.scan_count != self.last_heartbeat_scan:
+            self.last_heartbeat_scan = self.scan_count
             await self._send_heartbeat()
 
     async def _emit_signal(self, sig: Dict):
