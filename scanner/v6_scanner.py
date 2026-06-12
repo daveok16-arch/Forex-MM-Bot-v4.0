@@ -238,7 +238,7 @@ class V6Scanner:
                 print(f"[V6] {pair} skipped: {reason}")
                 continue
             conf, sig, details = self._composite_score(pair, d)
-            if conf >= 75 and sig != "HOLD":
+            if conf >= 45 and sig != "HOLD":
                 vol = abs(details["orderflow"]) if isinstance(details["orderflow"], float) else 0.5
                 sizing = self.position_sizer.calculate(d["current_price"], d["current_price"] * 0.98 if sig == "BUY" else d["current_price"] * 1.02, 10000.0, vol)
                 calendar_alert = self.calendar.get_alert(pair)
