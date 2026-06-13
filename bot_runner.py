@@ -62,7 +62,6 @@ def main():
                     try:
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
-                        loop.run_until_complete(scanner._send_heartbeat())
                         loop.close()
                     except Exception as e:
                         print(f"[Scanner] Heartbeat failed: {e}")
